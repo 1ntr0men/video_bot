@@ -11,8 +11,9 @@ import youtube_dl
 import datetime
 import time
 
-fin = open("limit.txt", "r", encoding="utf-8")
-limit = int(fin.readline())
+fin = open("Cookies.txt", "r", encoding="utf-8")
+accounts = fin.readlines()  # блок получения лимита
+limit = int(accounts[0][:1])
 fin.close()
 
 user_token = "88a036252b1e9df51aca4f3c27fc97b17b2fc3a3bf70cd7f1a23fada71690a610ab7210ca55edf6815005"
@@ -21,7 +22,6 @@ community_token = "519b455618498f3d0a1ed56407bc84fa7db6f3cb382ec19a734678a65861a
 session = requests.Session()
 vk_session = vk_api.VkApi(token=community_token)
 upload = VkUpload(vk_session)
-archive_group_id = 193181102
 
 taboo = {"UC7f5bVxWsm3jlZIPDzOMcAg": "Я презираю автора этого канала, поэтому я не буду это загружать",
          "UCdKuE7a2QZeHPhDntXVZ91w": "Автор этого канала запретил загружать его ролики((",
@@ -42,13 +42,16 @@ taboo = {"UC7f5bVxWsm3jlZIPDzOMcAg": "Я презираю автора этог�
          "UCsk9ntn2afzIqInnx2jB8gw": "Автор этого канала запретил загружать его ролики"}
 
 db = DB()
-users = Users(db.get_connection())
+users = Users(db.get_connection())  # блок получения БД
 users.init_table()
 
 
-def wr(limit):
-    fout = open("limit.txt", "w", encoding="utf-8")
-    fout.write(str(limit))
+def wr():
+    global accounts, limit
+    accounts[0] = str(limit) + "\n"
+    fout = open("Cookies.txt", "w", encoding="utf-8")
+    for i in accounts:
+        fout.write(i)
     fout.close()
 
 
@@ -130,7 +133,7 @@ def edit_desciption(args):
         return 0
     else:
         params = (
-            ("owner_id", archive_group_id * -1),
+            ("owner_id", 193181102 * -1),
             ("video_id", id),
             ("name", name),
             ("desc",
@@ -148,7 +151,7 @@ def upload_1(name, f, wallpost):
         ("name", name),
         ("description", ""),
         ("wallpost", wallpost),
-        ('group_id', archive_group_id),
+        ('group_id', 193181102),
         ('access_token', user_token),
         ("v", "5.103")
     )
@@ -161,13 +164,10 @@ def upload_1(name, f, wallpost):
 
 
 @try_repeat
-def autoposter(v, userid):
+def autoposter(url, userid):
     global limit
-    url = 'https://www.youtube.com/watch?v=' + v
-    ydl_opts = {}
-    ydl_opts['outtmpl'] = "\\video_PM\\%(title)s.%(ext)s"
-    ydl_opts['quiet'] = True
-    ydl_opts['merge_output_format'] = 'mp4'
+    ydl_opts = {'outtmpl': "./video_PM/%(title)s.%(ext)s", 'quiet': True,
+                'merge_output_format': 'mp4'}
 
     ydl = youtube_dl.YoutubeDL(ydl_opts)
     result = ydl.extract_info(url, download=False)
@@ -177,7 +177,7 @@ def autoposter(v, userid):
     if views >= 500000 and limit < 50:
         wallpost = 1
         limit += 1
-        wr(limit)
+        wr()
     else:
         wallpost = 0
 
@@ -190,68 +190,71 @@ def autoposter(v, userid):
         return 0, 0
     else:
         ydl.download([url])
-        id_vk, name_vk = upload_1("".join(list(n)[10:len(n) - 4]), n, wallpost)
+        id_vk, name_vk = upload_1(n[11:len(n) - 4], n, wallpost)
         os.remove(n)
         return id_vk, name_vk
 
 
+def inspektor(id):
+    global accounts
+    accounts.append(str(id) + "\n")
+    wr()
+
+
 def main():
-    global limit
+    global limit, accounts
     day = int(datetime.datetime.now().day)
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
             if users.exists(event.user_id)[0]:
                 sub = int(users.exists(event.user_id)[1])
                 if sub > day or sub == 0:
-                    if event.text.lower() == 'хочу видео':
-                        if event.from_user:
-                            vk.messages.send(
-                                user_id=event.user_id,
-                                message='Здравствуйте, вам предоставлена недельная подписка\n'
-                                        '\nВы можете запросить одно видео в день'
-                                        '\nДля запроса пришлите ссылку на нужное вам видео. '
-                                        'Длинна видео не должна превышать час\n'
-                                        '\nВ зависимости от длинны видео мы пришлем его вам через 1-180 ми\n'
-                                        '\nP.S. бот в бета тесте возможны неполадки\n',
-                                random_id=randint(0, 19999),
-                            )
-
-                    elif len(event.text) == 43:
+                    if event.text[:8] == "https://":
                         if event.from_user:
                             vk.messages.send(
                                 user_id=event.user_id,
                                 message="Загрузка видео начата, ожидайте",
                                 random_id=randint(0, 19999)
                             )
-                            send_video(edit_desciption(autoposter(event.text[32:], event.user_id)), event.user_id)
+                            send_video(edit_desciption(autoposter(event.text, event.user_id)), event.user_id)
                         if sub == 0:
                             users.non_subscribe(event.user_id)
                             agitation(event.user_id)
+                    elif event.user_id == 253830804:
+                        if event.text.lower() == 'валид':
+                            users.subscribe(event.user_id)
+                            if event.from_user:
+                                vk.messages.send(
+                                    user_id=int(accounts[1]),
+                                    message="Скриншот проверен, огромное спасибо за "
+                                            "регистарцию, бот в твоем распоряжении))",
+                                    random_id=randint(0, 19999),
+                                )
 
-                    elif len(event.text) == 28:
-                        if event.from_user:
-                            vk.messages.send(
-                                user_id=event.user_id,
-                                message="Загрузка видео начата, ожидайте",
-                                random_id=randint(0, 19999)
-                            )
-                            send_video(edit_desciption(autoposter(event.text[17:], event.user_id)), event.user_id)
-                        if sub == 0:
-                            users.non_subscribe(event.user_id)
-                            agitation(event.user_id)
+                                vk.messages.send(
+                                    user_id=253830804,
+                                    message="Аккаунт " + "https://vk.com/id" + accounts[0] + " - валид",
+                                    random_id=randint(0, 19999),
+                                )
+                                accounts = accounts[1:]
+                                wr()
+                        elif event.text.lower() == 'нет':
+                            if event.from_user:
+                                vk.messages.send(
+                                    user_id=int(accounts[1]),
+                                    message="Скриншот проверен, пришлите пожалуйста "
+                                            "настоящий скрин успешной регистрации",
+                                    random_id=randint(0, 19999),
+                                )
 
-                    elif len(event.text) == 41:
-                        if event.from_user:
-                            vk.messages.send(
-                                user_id=event.user_id,
-                                message="Загрузка видео начата, ожидайте",
-                                random_id=randint(0, 19999)
-                            )
-                            send_video(edit_desciption(autoposter(event.text[30:], event.user_id)), event.user_id)
-                        if sub == 0:
-                            users.non_subscribe(event.user_id)
-                            agitation(event.user_id)
+                                vk.messages.send(
+                                    user_id=253830804,
+                                    message="Аккаунт " + "https://vk.com/id" + accounts[0] + " - не валид",
+                                    random_id=randint(0, 19999),
+                                )
 
+                                accounts = accounts[1:]
+                                wr()
                     else:
                         if event.from_user:
                             vk.messages.send(
@@ -259,15 +262,44 @@ def main():
                                 message="Я распознаю лишь ссылки",
                                 random_id=randint(0, 19999),
                             )
-                elif "attach1_type" in event.attachments:
+
+                elif event.attachments:
                     if event.attachments['attach1_type'] == 'photo':
                         if event.from_user:
                             vk.messages.send(
                                 user_id=event.user_id,
-                                message="Огромное спасибо, бот в твоем распоряжении))",
+                                message='Ваш скриншот отправлен на проверку\n'
+                                        'Максимальное время ожидания: 3 часа',
                                 random_id=randint(0, 19999),
                             )
-                        users.subscribe(event.user_id)
+                            vk.messages.send(
+                                user_id=253830804,
+                                message="Валид? " + "https://vk.com/id" + str(event.user_id),
+                                random_id=randint(0, 19999),
+                                forward_messages=event.message_id,
+                                keyboard=json.dumps({
+                                    "one_time": False,
+                                    "inline": True,
+                                    "buttons": [[
+                                        {
+                                            "action": {
+                                                "type": "text",
+                                                "label": "Валид"
+                                            },
+                                            "color": "positive"
+                                        },
+                                        {
+                                            "action": {
+                                                "type": "text",
+                                                "label": "Нет"
+                                            },
+                                            "color": "negative"
+                                        }
+                                    ]
+                                    ]
+                                })
+                            )
+                            inspektor(event.user_id)
 
                 else:
                     agitation(event.user_id)
@@ -299,7 +331,7 @@ def main():
         if day != int(datetime.datetime.now().strftime("%j")):
             day = int(datetime.datetime.now().strftime("%j"))
             limit = 0
-            wr(limit)
+            wr()
             for root, dirs, files in os.walk("\\video_PM\\"):
                 for file in files:
                     os.remove(os.path.join(root, file))
@@ -315,16 +347,16 @@ try:
     main()
 except requests.exceptions.ConnectionError:
     print("Поймал, ебать")
-    os.system('python3 videoPM_v3.py')
+    os.system('python3 s_bot.py')
     time.sleep(1)
     quit()
 except requests.exceptions.ReadTimeout:
     print("Поймал, ебать")
-    os.system('python3 videoPM_v3.py')
+    os.system('python3 s_bot.py')
     time.sleep(1)
     quit()
 except vk_api.exceptions.ApiError:
     print("Поймал, ебать")
-    os.system('python3 videoPM_v3.py')
+    os.system('python3 s_bot.py')
     time.sleep(1)
     quit()

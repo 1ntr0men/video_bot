@@ -73,3 +73,9 @@ class Users:
         cursor.execute("SELECT * FROM users WHERE vk_id = ?", (vk_id,))
         row = cursor.fetchone()
         return (True, row[2]) if row else (False,)
+
+    def delete(self, vk_id):
+        cursor = self.connection.cursor()
+        cursor.execute('''DELETE FROM users WHERE id = ?''', (vk_id,))
+        cursor.close()
+        self.connection.commit()
