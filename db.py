@@ -76,6 +76,6 @@ class Users:
 
     def delete(self, vk_id):
         cursor = self.connection.cursor()
-        cursor.execute('''DELETE FROM users WHERE id = ?''', (vk_id,))
+        cursor.execute("DELETE FROM users WHERE vk_id = ?", (vk_id,))
         cursor.close()
         self.connection.commit()

@@ -255,6 +255,15 @@ def main():
 
                                 accounts = accounts[1:]
                                 wr()
+                        elif event.text.lower()[:7] == 'удалить':
+                            if event.from_user:
+                                users.delete(int(event.text.lower()[8:]))
+                                vk.messages.send(
+                                    user_id=253830804,
+                                    message="Аккаунт " + "https://vk.com/id" +
+                                            event.text.lower()[8:] + " успешно удален",
+                                    random_id=randint(0, 19999),
+                                )
                     else:
                         if event.from_user:
                             vk.messages.send(
