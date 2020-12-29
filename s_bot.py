@@ -230,10 +230,10 @@ def main():
                                             "регистарцию, бот в твоем распоряжении))",
                                     random_id=randint(0, 19999),
                                 )
-
+                                users.subscribe(event.user_id)
                                 vk.messages.send(
                                     user_id=253830804,
-                                    message="Аккаунт " + "https://vk.com/id" + accounts[0] + " - валид",
+                                    message="Аккаунт " + "https://vk.com/id" + accounts[1] + " - валид",
                                     random_id=randint(0, 19999),
                                 )
                                 accounts = accounts[1:]
@@ -249,7 +249,7 @@ def main():
 
                                 vk.messages.send(
                                     user_id=253830804,
-                                    message="Аккаунт " + "https://vk.com/id" + accounts[0] + " - не валид",
+                                    message="Аккаунт " + "https://vk.com/id" + accounts[1] + " - не валид",
                                     random_id=randint(0, 19999),
                                 )
 
@@ -262,6 +262,13 @@ def main():
                                     user_id=253830804,
                                     message="Аккаунт " + "https://vk.com/id" +
                                             event.text.lower()[8:] + " успешно удален",
+                                    random_id=randint(0, 19999),
+                                )
+                        else:
+                            if event.from_user:
+                                vk.messages.send(
+                                    user_id=event.user_id,
+                                    message="Я распознаю лишь ссылки",
                                     random_id=randint(0, 19999),
                                 )
                     else:
@@ -336,19 +343,6 @@ def main():
                                 'Зарание спасибо\n',
                         random_id=randint(0, 19999),
                     )
-
-        if day != int(datetime.datetime.now().strftime("%j")):
-            day = int(datetime.datetime.now().strftime("%j"))
-            limit = 0
-            wr()
-            for root, dirs, files in os.walk("\\video_PM\\"):
-                for file in files:
-                    os.remove(os.path.join(root, file))
-            vk.messages.send(
-                user_id=253830804,
-                message='Обнулился ебана рот',
-                random_id=randint(0, 19999),
-            )
 
 
 try:
