@@ -6,7 +6,6 @@ from random import randint
 from vk_api.longpoll import VkLongPoll, VkEventType
 import json
 import os
-import random
 import youtube_dl
 import datetime
 import time
@@ -103,7 +102,7 @@ def send_video(id, reciever):
         message = "Дождитесь обработки видео ВК и наслаждайтесь просмотром"
         params = (
             ("user_id", reciever),
-            ("random_id", random.randint(0, 19999)),
+            ("random_id", randint(0, 19999)),
             ("message", message),
             ("attachment", "video-193181102_" + str(id)),
             ('access_token', community_token),
@@ -116,7 +115,7 @@ def send_video(id, reciever):
         message = "Извините, неполадки со стороны ютуба, пришлите другое видео))"
         params = (
             ("user_id", reciever),
-            ("random_id", random.randint(0, 19999)),
+            ("random_id", randint(0, 19999)),
             ("message", message),
             ("attachment", "video-193181102_" + str(id)),
             ('access_token', community_token),
@@ -203,11 +202,13 @@ def inspektor(id):
 
 def main():
     global limit, accounts
-    day = int(datetime.datetime.now().day)
+    day = 1
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
             if users.exists(event.user_id)[0]:
                 sub = int(users.exists(event.user_id)[1])
+                print(sub)
+                print()
                 if sub > day or sub == 0:
                     if event.text[:8] == "https://":
                         if event.from_user:
@@ -222,7 +223,7 @@ def main():
                             agitation(event.user_id)
                     elif event.user_id == 253830804:
                         if event.text.lower() == 'валид':
-                            users.subscribe(event.user_id)
+                            users.subscribe(int(accounts[1]))
                             if event.from_user:
                                 vk.messages.send(
                                     user_id=int(accounts[1]),
@@ -230,7 +231,7 @@ def main():
                                             "регистарцию, бот в твоем распоряжении))",
                                     random_id=randint(0, 19999),
                                 )
-                                users.subscribe(event.user_id)
+
                                 vk.messages.send(
                                     user_id=253830804,
                                     message="Аккаунт " + "https://vk.com/id" + accounts[1] + " - валид",
@@ -278,8 +279,7 @@ def main():
                                 message="Я распознаю лишь ссылки",
                                 random_id=randint(0, 19999),
                             )
-
-                elif event.attachments:
+                elif "attach1_type" in event.attachments:
                     if event.attachments['attach1_type'] == 'photo':
                         if event.from_user:
                             vk.messages.send(
