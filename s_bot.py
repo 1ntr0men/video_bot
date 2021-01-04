@@ -7,7 +7,6 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 import json
 import os
 import youtube_dl
-import datetime
 import time
 
 fin = open("Cookies.txt", "r", encoding="utf-8")
@@ -170,6 +169,7 @@ def autoposter(url, userid):
 
     ydl = youtube_dl.YoutubeDL(ydl_opts)
     result = ydl.extract_info(url, download=False)
+    duration = result.get("duration")
     views = result.get('view_count')
     channel = result.get('channel_id')
     n = ydl.prepare_filename(result)
@@ -184,6 +184,13 @@ def autoposter(url, userid):
         vk.messages.send(
             user_id=userid,
             message=taboo[channel],
+            random_id=randint(0, 19999)
+        )
+        return 0, 0
+    elif duration > 7200:
+        vk.messages.send(
+            user_id=userid,
+            message="Вк не дает загружать видео больше 2 часов, пожалуйста пришлите другой ролик",
             random_id=randint(0, 19999)
         )
         return 0, 0
@@ -207,8 +214,6 @@ def main():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
             if users.exists(event.user_id)[0]:
                 sub = int(users.exists(event.user_id)[1])
-                print(sub)
-                print()
                 if sub > day or sub == 0:
                     if event.text[:8] == "https://":
                         if event.from_user:

@@ -9,7 +9,6 @@ import os
 import random
 import youtube_dl
 import datetime
-import time
 
 fin = open("Cookies.txt", "r", encoding="utf-8")
 accounts = fin.readlines()  # блок получения лимита
@@ -171,6 +170,8 @@ def autoposter(v, userid):
 
     ydl = youtube_dl.YoutubeDL(ydl_opts)
     result = ydl.extract_info(url, download=False)
+    duration = result.get("duration")
+    print(duration)
     views = result.get('view_count')
     channel = result.get('channel_id')
     n = ydl.prepare_filename(result)
@@ -343,7 +344,6 @@ def main():
                                 'Зарание спасибо\n',
                         random_id=randint(0, 19999),
                     )
-
 
 
 main()
