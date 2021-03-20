@@ -9,63 +9,41 @@ import os
 import youtube_dl
 import time
 
-fin = open("Cookies.txt", "r", encoding="utf-8")
-accounts = fin.readlines()  # блок получения лимита
-limit = int(accounts[0][:1])
-fin.close()
-
-user_token = "88a036252b1e9df51aca4f3c27fc97b17b2fc3a3bf70cd7f1a23fada71690a610ab7210ca55edf6815005"
+# токены
+user_token = "a9de7c0b0479bd9b3eba471fa7c837a383adda2fea40387cdf6c2cd560fe5b9c46a9bd3033fa74c70e248"
 community_token = "519b455618498f3d0a1ed56407bc84fa7db6f3cb382ec19a734678a65861aa8afab2cc75a18e6cdefd093"
 
+# json с куки
+with open('Cookies.json', encoding='utf-8') as f:
+    cookies = json.loads(f.read())
+
+# получение данных из куки
+sub_queue = cookies["sub_queue"]
+limit = cookies["limit"]
+ban_authors = cookies["ban_authors"]
+
+# создание сессии вк
 session = requests.Session()
 vk_session = vk_api.VkApi(token=community_token)
 upload = VkUpload(vk_session)
 
-taboo = {"UC7f5bVxWsm3jlZIPDzOMcAg": "Я презираю автора этого канала, поэтому я не буду это загружать",
-         "UCdKuE7a2QZeHPhDntXVZ91w": "Автор этого канала запретил загружать его ролики((",
-         "UCdmauIL-k-djcct-yMrf82A": "Автор этого канала запретил загружать его ролики",
-         "UCyxifPm6ErHW08oXMpzqATw": "Автор этого канала запретил загружать его ролики",
-         "UCRpjHHu8ivVWs73uxHlWwFA": "Автор этого канала запретил загружать его ролики",
-         "UCiV4ED9tyQUwsn27WTdVsPg": "Автор этого канала запретил загружать его ролики",
-         "UCmM6pO5qYhhmYz-qq-fOTRw": "Автор этого канала запретил загружать его ролики",
-         "UCOxeDBrR9XuZcI9NR9a8zfQ": "Автор этого канала запретил загружать его ролики",
-         "UCHtvgXPPVX5X5BXP8cu7riQ": "Автор этого канала запретил загружать его ролики",
-         "UCEnefm2JNYP3dhLULMWBOVA": "Автор этого канала запретил загружать его ролики",
-         "UCpJ75-WA0P3EsEgGfhzkZrQ": "Автор этого канала запретил загружать его ролики",
-         "UClZkHt2kNIgyrTTPnSQV3SA": "Автор этого канала запретил загружать его ролики",
-         "UC3QnkztzojU232SysU-f-wA": "Автор этого канала запретил загружать его ролики",
-         "UCRv76wLBC73jiP7LX4C3l8Q": "Автор этого канала запретил загружать его ролики",
-         "UCWsJG8ibALRIB6OIon0yWhg": "Автор этого канала запретил загружать его ролики",
-         "UCFTq_8SXc-SByisJqDZp9ZQ": "Автор этого канала запретил загружать его ролики",
-         "UCsk9ntn2afzIqInnx2jB8gw": "Автор этого канала запретил загружать его ролики"}
-
+# подключение к БД
 db = DB()
-users = Users(db.get_connection())  # блок получения БД
+users = Users(db.get_connection())
 users.init_table()
 
 
+# cохранение данных в файл json
 def wr():
-    global accounts, limit
-    accounts[0] = str(limit) + "\n"
-    fout = open("Cookies.txt", "w", encoding="utf-8")
-    for i in accounts:
-        fout.write(i)
-    fout.close()
+    global sub_queue, limit, ban_authors
+    to_json = {"limit": limit,
+               "sub_queue": sub_queue,
+               "ban_authors": ban_authors}
+    with open('Cookies.json', 'w', encoding='utf-8') as file:
+        file.write(json.dumps(to_json, ensure_ascii=False))  # сохранение словаря в файл в формате json
 
 
-def agitation(id):
-    vk.messages.send(
-        user_id=id,
-        message="Тестовое видео потрачено\n"
-                "Для безлимитной загрузки видео зарегистрируйтесь по данной ссылке"
-                " https://stvkr.com/click-HQRAA3UO-NLJQB8OF?bt=25&tl=1&sa=rjandael , после чего пришлите"
-                " сюда сообщение с текстом '1' и прикрепленным скриншотом, подтверждающим регистрацию\n"
-                "\n"
-                "Это требуется для оплаты серверов, для вас все абсолютно бесплатно",
-        random_id=randint(0, 19999),
-    )
-
-
+# декоратор повторного запуска функции в случае ошибки
 def try_repeat(func):
     def wrapper(*args, **kwargs):
         count = 3
@@ -85,6 +63,7 @@ def try_repeat(func):
     return wrapper
 
 
+# подключение к сессии вк
 try:
     vk_session.auth(token_only=True)
 except vk_api.AuthError as error_msg:
@@ -94,22 +73,115 @@ longpoll = VkLongPoll(vk_session, mode=2)
 vk = vk_session.get_api()
 
 
+# функция загрузки видео из ютуба
 @try_repeat
-def send_video(id, reciever):
-    if id:
+def autoposter(url, userid):
+    global limit
+
+    ydl_opts = {'outtmpl': "./video_PM/%(title)s.%(ext)s", 'quiet': True,  # опции для загрузки видео через youtube_dl
+                'merge_output_format': 'mp4'}
+
+    ydl = youtube_dl.YoutubeDL(ydl_opts)
+    video_info = ydl.extract_info(url, download=False)
+    duration = video_info.get("duration")  # создание обьекта типа youtube_dl и парсинг данных оттуда
+    views = video_info.get('view_count')
+    channel = video_info.get("uploader")
+    title = "{" + channel + "} " + video_info.get("title")
+    video_path = ydl.prepare_filename(video_info)
+
+    if views >= 500000 and limit < 50:  # если больше 500000 просмотров то постим на стену группы
+        wallpost_flag = 1
+        limit += 1
+        wr()  # сохранение
+    else:
+        wallpost_flag = 0
+
+    if channel in ban_authors:  # проверка, находится ли автор бане
+        vk.messages.send(
+            user_id=userid,
+            message="Автор этого канала запретил загружать его ролики((",
+            random_id=randint(0, 19999)
+        )
+        return 0, 0
+
+    elif duration > 7200:  # проверка, что видео длится менее 2 часов
+        vk.messages.send(
+            user_id=userid,
+            message="Вк не дает загружать видео больше 2 часов, пожалуйста пришли другой ролик",
+            random_id=randint(0, 19999)
+        )
+        return 0, 0
+
+    else:  # загрузка видео
+        ydl.download([url])  # загрузка видео через youtube_dl
+        video_id = upload_1(title, video_path, wallpost_flag)  # выгрузка видео в вк и получение его id обратно
+        os.remove(video_path)  # удаление видео с устройства
+
+        return video_id, title
+
+
+# Выгрузка видео на сервер ВК
+@try_repeat
+def upload_1(title, video_path, wallpost_flag):
+    params = (
+        ("name", title),
+        ("description", ""),
+        ("wallpost", wallpost_flag),
+        ('group_id', 193181102),
+        ('access_token', user_token),
+        ("v", "5.103")
+    )
+
+    response = requests.get('https://api.vk.com/method/video.save', params=params)
+    upload_server = json.loads(response.text)['response']['upload_url']  # получение ссылки для выгрузки видео
+
+    video_id = json.loads(response.text)['response']['video_id']  # получение id видео
+
+    files = {'video_file': open(video_path, 'rb')}  # выгрузка файла с видео на сервер вк по полученной ссылке
+    requests.post(upload_server, files=files)
+
+    return video_id
+
+
+# исправление описания видео(добавление рекламы в описание)
+@try_repeat
+def edit_desciption(args):
+    video_id = args[0]  # распаковка аргументов
+    title = args[1]
+
+    if video_id == 0:  # если не прошли условия в autoposter
+        return 0
+    else:
+        params = (
+            ("owner_id", 193181102 * -1),
+            ("video_id", id),
+            ("name", title),
+            ("desc", "основное сообщество - https://vk.com/youtubeupload"),
+            ('access_token', user_token),
+            ("v", "5.103")
+        )
+        requests.post('https://api.vk.com/method/video.edit', params=params)
+
+        return video_id
+
+
+# отправка видео пользователю, который запросил видео
+@try_repeat
+def send_video(video_id, reciever):
+    if video_id:  # отправка видео пользователю
         message = "Дождитесь обработки видео ВК и наслаждайтесь просмотром"
         params = (
             ("user_id", reciever),
             ("random_id", randint(0, 19999)),
             ("message", message),
-            ("attachment", "video-193181102_" + str(id)),
+            ("attachment", "video-193181102_" + str(video_id)),
             ('access_token', community_token),
             ("v", "5.103")
         )
         requests.post('https://api.vk.com/method/messages.send', params=params)
-    elif id == 0:
+    elif video_id == 0:  # ничего если не прошли условия в autoposter
         pass
-    else:
+    else:  # какие то неисправности с видео, вк или youtube
         message = "Извините, неполадки со стороны ютуба, пришлите другое видео))"
         params = (
             ("user_id", reciever),
@@ -122,145 +194,91 @@ def send_video(id, reciever):
         requests.post('https://api.vk.com/method/messages.send', params=params)
 
 
-@try_repeat
-def edit_desciption(args):
-    id = args[0]
-    name = args[1]
-    if id == 0:
-        return 0
-    else:
-        params = (
-            ("owner_id", 193181102 * -1),
-            ("video_id", id),
-            ("name", name),
-            ("desc",
-             "основное сообщество - https://vk.com/youtubeupload"),
-            ('access_token', user_token),
-            ("v", "5.103")
-        )
-        requests.post('https://api.vk.com/method/video.edit', params=params)
-        return id
-
-
-@try_repeat
-def upload_1(name, f, wallpost):
-    params = (
-        ("name", name),
-        ("description", ""),
-        ("wallpost", wallpost),
-        ('group_id', 193181102),
-        ('access_token', user_token),
-        ("v", "5.103")
+# просьба о регистрации
+def agitation(user_id):
+    vk.messages.send(
+        user_id=user_id,
+        message="Тестовое видео потрачено\n"
+                "Для безлимитной загрузки видео зарегистрируйтесь по данной ссылке"
+                " https://stvkr.com/click-HQRAA3UO-NLJQB8OF?bt=25&tl=1&sa=rjandael , после чего пришлите"
+                " сюда сообщение с текстом '1' и прикрепленным скриншотом, подтверждающим регистрацию\n"
+                "\n"
+                "Это требуется для оплаты серверов, для вас все абсолютно бесплатно",
+        random_id=randint(0, 19999),
     )
-    response = requests.get('https://api.vk.com/method/video.save', params=params)
-    upload_server = json.loads(response.text)['response']['upload_url']
-    id = json.loads(response.text)['response']['video_id']
-    files = {'video_file': open(f, 'rb')}
-    requests.post(upload_server, files=files)
-    return id, name
 
 
-@try_repeat
-def autoposter(url, userid):
-    global limit
-    ydl_opts = {'outtmpl': "./video_PM/%(title)s.%(ext)s", 'quiet': True,
-                'merge_output_format': 'mp4'}
-
-    ydl = youtube_dl.YoutubeDL(ydl_opts)
-    result = ydl.extract_info(url, download=False)
-    duration = result.get("duration")
-    views = result.get('view_count')
-    channel = result.get('channel_id')
-    n = ydl.prepare_filename(result)
-    if views >= 500000 and limit < 50:
-        wallpost = 1
-        limit += 1
-        wr()
-    else:
-        wallpost = 0
-
-    if channel in taboo:
-        vk.messages.send(
-            user_id=userid,
-            message=taboo[channel],
-            random_id=randint(0, 19999)
-        )
-        return 0, 0
-    elif duration > 7200:
-        vk.messages.send(
-            user_id=userid,
-            message="Вк не дает загружать видео больше 2 часов, пожалуйста пришли другой ролик",
-            random_id=randint(0, 19999)
-        )
-        return 0, 0
-    else:
-        ydl.download([url])
-        id_vk, name_vk = upload_1(n[11:len(n) - 4], n, wallpost)
-        os.remove(n)
-        return id_vk, name_vk
+# метод добавления нового пользователя в очередь ожидающих подписку
+def add_sub_queue(user_id):
+    global sub_queue
+    sub_queue.append(str(user_id))
+    wr()  # сохранение
 
 
-def inspektor(id):
-    global accounts
-    accounts.append(str(id) + "\n")
-    wr()
-
-
+# основная программа
 def main():
-    global limit, accounts
-    day = 1
+    global limit, sub_queue
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-            if users.exists(event.user_id)[0]:
-                sub = int(users.exists(event.user_id)[1])
-                if sub > day or sub == 0:
-                    if event.text[:8] == "https://":
+            if users.exists(event.user_id)[0]: # проверка что пользователь есть в БД
+
+                user_subscription = int(users.exists(event.user_id)[1])  # состояние подписки пользователя
+
+                if user_subscription >= 0:
+                    if event.text[:8] == "https://":  # запрос видео
                         if event.from_user:
                             vk.messages.send(
                                 user_id=event.user_id,
                                 message="Загрузка видео начата, ожидайте",
                                 random_id=randint(0, 19999)
                             )
+                            # загрузка, выгрузка в вк, изменение описания и отправка пользователю видео
                             send_video(edit_desciption(autoposter(event.text, event.user_id)), event.user_id)
-                        if sub == 0:
-                            users.non_subscribe(event.user_id)
-                            agitation(event.user_id)
-                    elif event.user_id == 253830804:
-                        if event.text.lower() == 'валид':
-                            users.subscribe(int(accounts[1]))
+
+                        if user_subscription == 0:  # если пользователь заказал свое первое видео
+                            users.non_subscribe(event.user_id)  # установка запрета на загрузку видео
+                            agitation(event.user_id)  # отправка пользователю оповещения, чтобы он зарегистрировался
+
+                    elif event.user_id == 253830804:  # сообщение от владельца
+
+                        if event.text.lower() == 'валид':  # скриншот валидный
+                            users.subscribe(int(sub_queue[0]))  # пользователю дается доступ
                             if event.from_user:
-                                vk.messages.send(
-                                    user_id=int(accounts[1]),
+                                vk.messages.send(  # отправка пользователю сообщения об успехе
+                                    user_id=int(sub_queue[0]),
                                     message="Скриншот проверен, огромное спасибо за "
                                             "регистарцию, бот в твоем распоряжении))",
                                     random_id=randint(0, 19999),
                                 )
 
-                                vk.messages.send(
+                                vk.messages.send(  # отправление владельцу сообщения об успехе
                                     user_id=253830804,
-                                    message="Аккаунт " + "https://vk.com/id" + accounts[1] + " - валид",
+                                    message="Аккаунт " + "https://vk.com/id" + sub_queue[0] + " - валид",
                                     random_id=randint(0, 19999),
                                 )
-                                accounts = accounts[1:]
-                                wr()
-                        elif event.text.lower() == 'нет':
+
+                                sub_queue = sub_queue[1:]  # удаление пользователя из очереди на получение подписки
+                                wr()  # сохранение
+
+                        elif event.text.lower() == 'нет':  # скриншот не валидный
                             if event.from_user:
-                                vk.messages.send(
-                                    user_id=int(accounts[1]),
+                                vk.messages.send(  # сообщение о неудаче пользователю
+                                    user_id=int(sub_queue[0]),
                                     message="Скриншот проверен, пришлите пожалуйста "
                                             "настоящий скрин успешной регистрации",
                                     random_id=randint(0, 19999),
                                 )
 
-                                vk.messages.send(
+                                vk.messages.send(  # сообщение о неудаче владельцу
                                     user_id=253830804,
-                                    message="Аккаунт " + "https://vk.com/id" + accounts[1] + " - не валид",
+                                    message="Аккаунт " + "https://vk.com/id" + sub_queue[0] + " - не валид",
                                     random_id=randint(0, 19999),
                                 )
 
-                                accounts = accounts[1:]
-                                wr()
-                        elif event.text.lower()[:7] == 'удалить':
+                                sub_queue = sub_queue[1:]  # удаление пользователя из очереди на получение подписки
+                                wr()  # сохранение
+
+                        elif event.text.lower()[:7] == 'удалить':  # удаление пользователя из подписчиков
                             if event.from_user:
                                 users.delete(int(event.text.lower()[8:]))
                                 vk.messages.send(
@@ -269,30 +287,33 @@ def main():
                                             event.text.lower()[8:] + " успешно удален",
                                     random_id=randint(0, 19999),
                                 )
-                        else:
+                        else:  # дефолтное сообщение бота, в случае отсутствия четкой команды
                             if event.from_user:
                                 vk.messages.send(
                                     user_id=event.user_id,
                                     message="Я распознаю лишь ссылки на видео из YouTube",
                                     random_id=randint(0, 19999),
                                 )
-                    else:
+
+                    else:  # дефолтное сообщение бота, в случае отсутствия четкой команды
                         if event.from_user:
                             vk.messages.send(
                                 user_id=event.user_id,
                                 message="Я распознаю лишь ссылки на видео из YouTube",
                                 random_id=randint(0, 19999),
                             )
-                elif "attach1_type" in event.attachments:
+
+                elif "attach1_type" in event.attachments:  # пользователь прислал скрин регистрации
                     if event.attachments['attach1_type'] == 'photo':
                         if event.from_user:
-                            vk.messages.send(
+                            vk.messages.send(  # сообщение пользователю чтобы он ожидал проверки
                                 user_id=event.user_id,
                                 message='Ваш скриншот отправлен на проверку\n'
                                         'Максимальное время ожидания: 3 часа',
                                 random_id=randint(0, 19999),
                             )
-                            vk.messages.send(
+
+                            vk.messages.send(  # отправка на проверку скрина владельцу
                                 user_id=253830804,
                                 message="Валид? " + "https://vk.com/id" + str(event.user_id),
                                 random_id=randint(0, 19999),
@@ -319,12 +340,13 @@ def main():
                                     ]
                                 })
                             )
-                            inspektor(event.user_id)
+
+                            add_sub_queue(event.user_id)  # добавление нового пользователя в очередь ожидающих подписку
 
                 else:
-                    agitation(event.user_id)
+                    agitation(event.user_id)  # случае отсутствия подписки присылается просьба о регистрации
 
-            else:
+            else:  # Первое сообщение новому пользователю
                 users.insert(event.user_id)
                 if event.from_user:
                     vk.messages.send(
@@ -334,21 +356,22 @@ def main():
                     )
 
 
+# запуск основной программы и ее перезапуск в случае ошибок
 try:
     time.sleep(2)
     main()
 except requests.exceptions.ConnectionError:
-    print("Поймал, ебать")
+    print("ПЕРЕЗАПУСК БОТА")
     os.system('python3 s_bot.py')
     time.sleep(1)
     quit()
 except requests.exceptions.ReadTimeout:
-    print("Поймал, ебать")
+    print("ПЕРЕЗАПУСК БОТА")
     os.system('python3 s_bot.py')
     time.sleep(1)
     quit()
 except vk_api.exceptions.ApiError:
-    print("Поймал, ебать")
+    print("ПЕРЕЗАПУСК БОТА")
     os.system('python3 s_bot.py')
     time.sleep(1)
     quit()
