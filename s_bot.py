@@ -10,7 +10,7 @@ import youtube_dl
 import time
 
 # токены
-user_token = "a9de7c0b0479bd9b3eba471fa7c837a383adda2fea40387cdf6c2cd560fe5b9c46a9bd3033fa74c70e248"
+user_token = "680b0c96b38ea22fbb81daf0b5e3053f271e7e788b7d85e1dbfdda27ebe84446154684e39a14cb8de4de9"
 community_token = "519b455618498f3d0a1ed56407bc84fa7db6f3cb382ec19a734678a65861aa8afab2cc75a18e6cdefd093"
 
 # json с куки
